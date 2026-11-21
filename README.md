@@ -26,6 +26,31 @@ npx expo start
 ```
 Install **Expo Go** from the Play Store on an Android phone and scan the QR code.
 
+## Share as an APK (no Play Store) — recommended for the team
+
+1. Create a free account at expo.dev, then once on this computer:
+   ```bash
+   npx eas-cli login
+   npx eas-cli init
+   ```
+2. Build the APK (runs on Expo's servers, about 15 minutes):
+   ```bash
+   npm run build:apk
+   ```
+   When it finishes you get a **download link** (also on expo.dev → your project → Builds).
+   Expo creates the app's signing key and keeps it, so every later APK installs as an update.
+3. Share the link (or the downloaded `.apk` file) with the team on WhatsApp / email.
+4. Each person, on their Android phone:
+   - opens the link and downloads the APK,
+   - taps it; Android asks to allow installs from that app (Chrome, WhatsApp, Files) → **Allow**,
+   - if Play Protect warns about an unknown developer → **More details → Install anyway**,
+   - opens **CERTEZY Team** and signs in with their website account.
+
+**Updating:** raise `version` (e.g. 1.0.1) and `android.versionCode` (e.g. 2) in `app.json`,
+run `npm run build:apk` again and share the new link. Installing it over the old app keeps
+everyone signed in. Never delete the Expo project: it holds the signing key, and an APK signed
+with a different key can't update the installed app.
+
 ## Build for Google Play (internal testing)
 
 Builds run on Expo's build servers (EAS), which also create and keep the app's signing key,

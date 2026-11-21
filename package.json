@@ -26,7 +26,8 @@
     "android": "expo start --android",
     "typecheck": "tsc --noEmit",
     "build:android": "eas build -p android --profile production",
-    "submit:android": "eas submit -p android --profile production"
+    "submit:android": "eas submit -p android --profile production",
+    "build:apk": "eas build -p android --profile preview"
   },
   "private": true
 }
