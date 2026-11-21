@@ -31,6 +31,13 @@
     },
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0fde04c1-2530-4e51-a70f-3df7197dbdbf"
+      }
+    },
+    "owner": "certezy-e-learning-pvt-ltd"
   }
 }
