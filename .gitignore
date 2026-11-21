@@ -39,3 +39,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# signing keys and store credentials never go in git
+*.jks
+*.keystore
+google-service-account*.json
