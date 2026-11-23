@@ -7,7 +7,9 @@ import { API_BASE } from "./config";
  *    (no idle sign-out; it renews itself for 90 days each time it's used);
  *  • the access token goes as a Bearer token; the refresh token is kept in the
  *    phone's secure storage and used to renew the access token silently;
- *  • only if renewing fails (signed out elsewhere, account blocked) is the person signed out.
+ *  • only when the server says the session is over (signed out elsewhere, account
+ *    blocked) is the person signed out — never because of a bad network or a server
+ *    restart: then the request fails with a "try again" message and the session stays.
  */
 const KEY = "certezy.accessToken";
 const REFRESH_KEY = "certezy.refreshToken";
@@ -15,7 +17,8 @@ let refreshToken: string | null = null;
 const CLIENT_HEADER = { "X-Client": "mobile" };
 let token: string | null = null;
 let onSignedOut: () => void = () => {};
-let refreshing: Promise<boolean> | null = null;
+type Renewal = "ok" | "ended" | "retry";
+let refreshing: Promise<Renewal> | null = null;
 
 export class ApiError extends Error {
   status: number;
@@ -58,14 +61,16 @@ const renew = () => {
           headers: { Accept: "application/json", "Content-Type": "application/json", ...CLIENT_HEADER },
           body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
         });
-        if (!r.ok) return false;
-        const j = await r.json();
-        if (!j?.data?.accessToken) return false;
-        await setToken(j.data.accessToken);
+        // Only a definite "no" ends the session; a server error / restart is retried later
+        if (r.status === 401 || r.status === 403) return "ended";
+        if (!r.ok) return "retry";
+        const j = await r.json().catch(() => null);
+        if (!j?.data?.accessToken) return "retry";
         if (j.data.refreshToken) await setRefreshToken(j.data.refreshToken);
-        return true;
+        await setToken(j.data.accessToken);
+        return "ok";
       } catch {
-        return false;
+        return "retry"; // no internet: keep the session
       } finally {
         setTimeout(() => (refreshing = null), 0);
       }
@@ -102,7 +107,9 @@ export async function api<T = any>(path: string, opts: Opts = {}, retry = true):
   }
 
   if (res.status === 401 && retry && !path.startsWith("/auth/login")) {
-    if (await renew()) return api<T>(path, opts, false);
+    const renewal = await renew();
+    if (renewal === "ok") return api<T>(path, opts, false);
+    if (renewal === "retry") throw new ApiError("Can't reach CERTEZY right now. Check your network and try again.", 0);
     await setToken(null);
     await setRefreshToken(null);
     onSignedOut();
