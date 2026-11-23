@@ -110,9 +110,11 @@ export default function Leads() {
             <Pressable onPress={() => router.push(`/lead/${l.id}`)}>
               <Card style={l.payment_alert ? { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" } : undefined}>
                 <View style={st.row}>
+                  {l.is_new ? <View style={st.newDot} accessibilityLabel="New lead, not opened yet" /> : null}
                   <Text style={st.name} numberOfLines={1}>{l.name}</Text>
                   <StageBadge stage={l.stage} />
                 </View>
+                {l.is_new ? <Text style={st.newText}>New lead — not opened yet</Text> : null}
                 <Text style={st.meta} numberOfLines={1}>
                   {l.course_title || "No course"}
                   {coordinator && l.owner_name ? ` · ${l.owner_name}` : ""}
@@ -146,6 +148,8 @@ const st = StyleSheet.create({
   error: { color: C.red, paddingHorizontal: 14 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   name: { flex: 1, fontSize: 16, fontWeight: "700", color: C.ink },
+  newDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.red },
+  newText: { color: C.red, fontWeight: "700", fontSize: 12, marginTop: 2 },
   meta: { color: C.muted, marginTop: 3 },
   alert: { color: C.red, fontWeight: "700", marginTop: 5, fontSize: 13 },
   follow: { color: C.primary, fontWeight: "600", marginTop: 6, fontSize: 13 },

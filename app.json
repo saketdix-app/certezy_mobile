@@ -2,13 +2,13 @@
   "expo": {
     "name": "CERTEZY Team",
     "slug": "certezy-team",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.certezy.team",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -48,6 +48,14 @@
         "projectId": "0fde04c1-2530-4e51-a70f-3df7197dbdbf"
       }
     },
-    "owner": "certezy-e-learning-pvt-ltd"
+    "owner": "certezy-e-learning-pvt-ltd",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0fde04c1-2530-4e51-a70f-3df7197dbdbf",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

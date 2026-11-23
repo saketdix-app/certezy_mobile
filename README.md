@@ -33,6 +33,17 @@ npx expo start
 ```
 Install **Expo Go** from the Play Store on an Android phone and scan the QR code.
 
+## Releasing updates (Profile → Check for updates)
+
+- **Small changes** (screens, wording, fixes — no new native library):
+  ```bash
+  npm run update:app
+  ```
+  Everyone on the same version gets it from **Profile → Check for updates** (and on the next app start). No reinstall.
+- **New version** (new native library, or app.json changes): raise `version` and `android.versionCode` in `app.json`,
+  run `npm run build:apk`, then in **Admin → Integrations → CERTEZY Team app updates** paste the version, version code
+  and the APK link. The app offers the download from **Check for updates**; installing it keeps people signed in.
+
 ## Push notifications (one-time setup)
 
 The server pushes every CRM notification (new lead assigned, new student for the exam,

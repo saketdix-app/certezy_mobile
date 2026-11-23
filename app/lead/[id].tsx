@@ -18,12 +18,15 @@ import {
   stageLabel,
 } from "../../src/crm";
 import { pickDateTime } from "../../src/pickDateTime";
+import { useAuth } from "../../src/auth";
+import { DeviceEventEmitter } from "react-native";
+import { LEADS_SEEN } from "../../src/newLeads";
+import { STARTERS, fillTemplate, whatsappNumberOf } from "../../src/messages";
 import { Button, Card, Chip, Field, Loading, Pill, SectionTitle, Sheet, StageBadge } from "../../src/ui";
 import { C } from "../../src/theme";
 
 type Lead = any;
 
-const digits = (p?: string) => String(p ?? "").replace(/\D/g, "");
 // Contact buttons: brand blue call, WhatsApp green, amber email (white text passes contrast)
 const CONTACT = { call: "#2F6496", whatsapp: "#0F7A42", email: "#B45309" };
 
@@ -34,12 +37,14 @@ export default function LeadDetail() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [sheet, setSheet] = useState<null | "stage" | "log" | "follow" | "cancelExam">(null);
+  const [sheet, setSheet] = useState<null | "stage" | "log" | "follow" | "cancelExam" | "whatsappNo">(null);
+  const [compose, setCompose] = useState<null | "whatsapp" | "email">(null);
   const [target, setTarget] = useState<string>("");
 
   const load = useCallback(async () => {
     try {
       setLead(await api(`/crm/leads/${id}`));
+      DeviceEventEmitter.emit(LEADS_SEEN); // opening it clears its "new" dot / badge
       setError("");
     } catch (e: any) {
       setError(e.message);
@@ -112,18 +117,27 @@ export default function LeadDetail() {
           {lead.phone ? (
             <>
               <Button small color={CONTACT.call} icon="call" title="Call" onPress={() => Linking.openURL(`tel:${lead.phone}`)} style={st.contactBtn} />
-              <Button small color={CONTACT.whatsapp} icon="logo-whatsapp" title="WhatsApp" onPress={() => Linking.openURL(`https://wa.me/${digits(lead.phone)}`)} style={st.contactBtn} />
             </>
           ) : null}
+          {whatsappNumberOf(lead) ? (
+            <Button small color={CONTACT.whatsapp} icon="logo-whatsapp" title="WhatsApp" onPress={() => setCompose("whatsapp")} style={st.contactBtn} />
+          ) : null}
           {lead.email ? (
-            <Button small color={CONTACT.email} icon="mail" title="Email" onPress={() => Linking.openURL(`mailto:${lead.email}`)} style={st.contactBtn} />
+            <Button small color={CONTACT.email} icon="mail" title="Email" onPress={() => setCompose("email")} style={st.contactBtn} />
           ) : null}
         </View>
-        {lead.phone || lead.email ? (
-          <Text style={st.metaSmall} selectable>
-            {[lead.phone, lead.email].filter(Boolean).join(" · ")}
-          </Text>
-        ) : null}
+        <View style={st.infoBox}>
+          <Row label="Phone" value={lead.phone ? `${lead.phone}${access.edit_phone ? "" : "  (from lead)"}` : "—"} />
+          <View style={[st.rowBetween, { paddingVertical: 4 }]}>
+            <Text style={st.rowLabel}>WhatsApp</Text>
+            <Pressable disabled={!access.edit} onPress={() => setSheet("whatsappNo")} hitSlop={8}>
+              <Text style={[st.rowValue, access.edit && { color: C.primary }]}>
+                {lead.whatsapp_number || (access.edit ? "Add number" : "Same as phone")}
+              </Text>
+            </Pressable>
+          </View>
+          {lead.email ? <Row label="Email" value={lead.email} /> : null}
+        </View>
       </Card>
 
       {lead.payment_alert ? (
@@ -309,6 +323,14 @@ export default function LeadDetail() {
         )}
       </Card>
 
+      <WhatsAppNumberSheet
+        visible={sheet === "whatsappNo"}
+        lead={lead}
+        busy={busy}
+        onClose={() => setSheet(null)}
+        onSave={(n) => run(() => api(`/crm/leads/${lead.id}`, { method: "PATCH", body: { whatsapp_number: n || null } }), "WhatsApp number saved")}
+      />
+      <ComposeSheet channel={compose} lead={lead} onClose={() => setCompose(null)} />
       <StageSheet visible={sheet === "stage"} lead={lead} target={target} busy={busy} onClose={() => setSheet(null)} onSave={(body) => run(() => api(`/crm/leads/${lead.id}/stage`, { method: "POST", body }), `Moved to ${stageLabel(target)}`)} />
       <LogSheet visible={sheet === "log"} busy={busy} onClose={() => setSheet(null)} onSave={(body) => run(() => api(`/crm/leads/${lead.id}/activities`, { method: "POST", body }))} />
       <FollowSheet visible={sheet === "follow"} busy={busy} onClose={() => setSheet(null)} onSave={(body) => run(() => api(`/crm/leads/${lead.id}/follow-ups`, { method: "POST", body }), "Follow-up scheduled")} />
@@ -322,6 +344,103 @@ export default function LeadDetail() {
         }
       />
     </ScrollView>
+  );
+}
+
+function WhatsAppNumberSheet({ visible, lead, busy, onClose, onSave }: { visible: boolean; lead: Lead; busy: boolean; onClose: () => void; onSave: (n: string) => void }) {
+  const [n, setN] = useState("");
+  useEffect(() => {
+    if (visible) setN(lead.whatsapp_number ?? "");
+  }, [visible, lead]);
+  return (
+    <Sheet visible={visible} title="WhatsApp number" onClose={onClose}>
+      <Text style={[st.body, { marginBottom: 12 }]}>
+        If the lead uses WhatsApp on another number, add it here. The phone from the lead source ({lead.phone || "none"}) stays as it is.
+      </Text>
+      <Field label="WhatsApp number (with country code)" value={n} onChangeText={setN} keyboardType="phone-pad" placeholder="+91 98765 43210" autoFocus />
+      <Button title="Save" icon="checkmark" busy={busy} onPress={() => onSave(n.trim())} />
+      {lead.whatsapp_number ? <Button title="Remove (use the phone)" kind="ghost" onPress={() => onSave("")} style={{ marginTop: 6 }} /> : null}
+    </Sheet>
+  );
+}
+
+/** WhatsApp / email with a saved message: lead details filled in, edit, open the app. */
+function ComposeSheet({ channel, lead, onClose }: { channel: null | "whatsapp" | "email"; lead: Lead; onClose: () => void }) {
+  const { user } = useAuth();
+  const [templates, setTemplates] = useState<any[] | null>(null);
+  const [text, setText] = useState("");
+  const [subject, setSubject] = useState("");
+  const [saveAs, setSaveAs] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!channel) return;
+    setText(fillTemplate(STARTERS[channel], lead, user));
+    setSubject(fillTemplate("About {course} — CERTEZY", lead, user));
+    setSaveAs("");
+    api<any[]>("/crm/templates")
+      .then((all) => setTemplates((all ?? []).filter((t) => t.channel === channel)))
+      .catch(() => setTemplates([]));
+  }, [channel, lead, user]);
+  if (!channel) return null;
+  const wa = channel === "whatsapp";
+  const open = () => {
+    const url = wa
+      ? `https://wa.me/${whatsappNumberOf(lead)}?text=${encodeURIComponent(text)}`
+      : `mailto:${lead.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    Linking.openURL(url).catch(() => Alert.alert("Couldn't open", wa ? "Is WhatsApp installed?" : "No email app found."));
+    onClose();
+  };
+  const save = async () => {
+    if (saveAs.trim().length < 2) return Alert.alert("Name it", "Give the message a short name, e.g. First contact.");
+    setSaving(true);
+    try {
+      // Save with fill-ins so it works for every lead
+      const generic = text
+        .split(lead.name ?? "\u0000").join("{name}")
+        .split(String(lead.name ?? "").split(" ")[0] || "\u0000").join("{first_name}");
+      await api("/crm/templates", { method: "POST", body: { channel, title: saveAs.trim(), subject: wa ? null : subject, body: generic } });
+      Alert.alert("Saved", "You'll find it under Saved messages next time.");
+      setSaveAs("");
+      const all = await api<any[]>("/crm/templates");
+      setTemplates((all ?? []).filter((t) => t.channel === channel));
+    } catch (e: any) {
+      Alert.alert("Couldn't save", e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Sheet visible title={wa ? `WhatsApp ${lead.name}` : `Email ${lead.name}`} onClose={onClose}>
+      <Text style={[st.metaSmall, { marginTop: 0, marginBottom: 10 }]}>
+        To {wa ? `+${whatsappNumberOf(lead)}${lead.whatsapp_number ? " (WhatsApp number)" : ""}` : lead.email}
+      </Text>
+      {templates && templates.length > 0 ? (
+        <>
+          <Text style={st.label}>Saved messages</Text>
+          <View style={[st.wrap, { marginBottom: 12 }]}>
+            {templates.map((t) => (
+              <Chip
+                key={t.id}
+                label={`${t.title}${t.shared ? " (team)" : ""}`}
+                onPress={() => {
+                  setText(fillTemplate(t.body, lead, user));
+                  if (t.subject) setSubject(fillTemplate(t.subject, lead, user));
+                }}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
+      {!wa ? <Field label="Subject" value={subject} onChangeText={setSubject} /> : null}
+      <Field label="Message" value={text} onChangeText={setText} multiline style={{ minHeight: wa ? 110 : 160 }} />
+      <Button title={wa ? "Open in WhatsApp" : "Open in email"} icon={wa ? "logo-whatsapp" : "mail"} color={wa ? CONTACT.whatsapp : CONTACT.email} onPress={open} />
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 14, alignItems: "flex-start" }}>
+        <View style={{ flex: 1 }}>
+          <Field value={saveAs} onChangeText={setSaveAs} placeholder="Save this as… (name)" />
+        </View>
+        <Button small kind="secondary" title="Save" busy={saving} onPress={save} style={{ marginTop: 2 }} />
+      </View>
+    </Sheet>
   );
 }
 
@@ -506,6 +625,7 @@ const st = StyleSheet.create({
   metaSmall: { color: C.faint, fontSize: 12, marginTop: 4 },
   contactRow: { flexDirection: "row", gap: 8, marginTop: 12 },
   contactBtn: { flex: 1, paddingHorizontal: 6, paddingVertical: 10 },
+  infoBox: { marginTop: 12, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 8 },
   alert: { flexDirection: "row", gap: 8, backgroundColor: C.redSoft, borderColor: "#FECACA", borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 10 },
   alertText: { flex: 1, color: C.red, fontWeight: "700" },
   label: { fontSize: 13, fontWeight: "700", color: C.muted, marginBottom: 6 },
