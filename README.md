@@ -14,6 +14,13 @@ stage — is enforced by the server exactly as on the web.
 | **Lead** | Call / WhatsApp / email; move the status (reasons, ticket size, exam date when needed); **close** as Not Interested or Junk; log calls and notes; schedule and complete follow-ups; application submitted; schedule / change / cancel the exam; mark Payment Done; full timeline |
 | **Follow-ups** | Today / overdue / upcoming, mark done or missed |
 | **Profile** | Who's signed in, open the full CRM on the web, sign out |
+| **Notifications** | Bell on Today: new leads, students assigned for exams, follow-up reminders; tap opens the lead |
+
+**Exam Coordinators** sign in too: Today shows applications, exams scheduled, exams in the next
+7 days, payment due after the exam, Course Done and payments this month, plus upcoming exams.
+Their list has the Application / Exam Scheduled / Course Done tabs (with the "exam done, payment
+due" filter), and on a student they schedule, change or cancel the exam, mark Payment Done and
+log notes — the same as the website.
 
 Who can sign in: Consultants, Exam Coordinators (they see their students and the exam
 workflow), Admins and Super Admins. Students are told to use the website.
@@ -25,6 +32,27 @@ npm ci
 npx expo start
 ```
 Install **Expo Go** from the Play Store on an Android phone and scan the QR code.
+
+## Push notifications (one-time setup)
+
+The server pushes every CRM notification (new lead assigned, new student for the exam,
+follow-up due…) to signed-in phones. Android delivers pushes through Firebase, so once:
+
+1. **console.firebase.google.com** → *Add project* → name it "CERTEZY Team" (Analytics not needed).
+2. In the project: *Add app* → **Android** → package name **com.certezy.team** → *Register app* →
+   download **google-services.json** and put it in this folder (next to `app.json`). Commit it —
+   it only identifies the app and is safe to keep in the repo.
+3. *Project settings → Service accounts* → **Generate new private key** (a `.json` file). Keep this
+   one private — never commit it. Then:
+   ```bash
+   npx eas-cli credentials -p android
+   ```
+   choose the **preview** build profile → *Google Service Account* → *Manage your Google Service
+   Account Key for Push Notifications (FCM V1)* → *Set up* → *Upload* → pick that `.json` file.
+4. Build a new APK (`npm run build:apk`) and install it over the old app. On first sign-in Android
+   asks to allow notifications → **Allow**.
+
+Without these steps the app works normally; it just can't receive pushes.
 
 ## Share as an APK (no Play Store) — recommended for the team
 

@@ -16,6 +16,8 @@ export default function Today() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const coordinator = user?.role === "exam_coordinator";
 
   const load = useCallback(async () => {
     try {
@@ -24,6 +26,9 @@ export default function Today() {
     } catch (e: any) {
       setError(e.message);
     }
+    api("/notifications")
+      .then((d) => setUnread(d.unread ?? 0))
+      .catch(() => {});
   }, []);
   useFocusEffect(
     useCallback(() => {
@@ -32,14 +37,25 @@ export default function Today() {
   );
 
   const k = data?.kpis ?? {};
-  const tiles: [string, number, string?, string?][] = [
-    ["Open leads", k.open_leads, undefined, ""],
-    ["Due today", k.follow_ups_today, C.primary],
-    ["Overdue", k.overdue_follow_ups, C.red],
-    ["Applications", k.applications, undefined, "application"],
-    ["Exam scheduled", k.exam_scheduled, undefined, "exam_scheduled"],
-    ["Course Done", k.course_done, C.green, "course_done"],
-  ];
+  const ex = data?.exams ?? {};
+  // [label, number, colour, stage to open (undefined = follow-ups), payment-due filter]
+  const tiles: [string, number, string?, string?, boolean?][] = coordinator
+    ? [
+        ["Applications", k.applications, undefined, "application"],
+        ["Exam scheduled", k.exam_scheduled, undefined, "exam_scheduled"],
+        ["Exams in 7 days", ex.next_7_days, C.primary, "exam_scheduled"],
+        ["Payment due", ex.payment_alerts, C.red, "exam_scheduled", true],
+        ["Course Done", k.course_done, C.green, "course_done"],
+        ["Paid this month", ex.payments_this_month, C.green, "course_done"],
+      ]
+    : [
+        ["Open leads", k.open_leads, undefined, ""],
+        ["Due today", k.follow_ups_today, C.primary],
+        ["Overdue", k.overdue_follow_ups, C.red],
+        ["Applications", k.applications, undefined, "application"],
+        ["Exam scheduled", k.exam_scheduled, undefined, "exam_scheduled"],
+        ["Course Done", k.course_done, C.green, "course_done"],
+      ];
   const first = user?.name?.split(" ")[0] ?? "";
 
   return (
@@ -47,19 +63,35 @@ export default function Today() {
       contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
     >
-      <Text style={st.hello}>Hi {first} 👋</Text>
-      <Text style={st.sub}>Here’s your day.</Text>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <View style={{ flex: 1 }}>
+          <Text style={st.hello}>Hi {first} 👋</Text>
+          <Text style={st.sub}>{coordinator ? "Your students’ applications, exams and payments." : "Here’s your day."}</Text>
+        </View>
+        <Pressable onPress={() => router.push("/notifications")} style={st.bell} accessibilityLabel={`Notifications, ${unread} unread`}>
+          <Ionicons name="notifications-outline" size={22} color={C.navy} />
+          {unread > 0 ? (
+            <View style={st.badge}>
+              <Text style={st.badgeText}>{unread > 99 ? "99+" : unread}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
       {error ? <Text style={st.error}>{error}</Text> : null}
       {!data && !error ? (
         <Loading />
       ) : data ? (
         <>
           <View style={st.grid}>
-            {tiles.map(([label, n, color, stage]) => (
+            {tiles.map(([label, n, color, stage, alert]) => (
               <Pressable
                 key={label}
                 style={st.tile}
-                onPress={() => (stage !== undefined ? router.push({ pathname: "/leads", params: { stage } }) : router.push("/follow-ups"))}
+                onPress={() =>
+                  stage !== undefined
+                    ? router.push({ pathname: "/leads", params: { stage, alert: alert ? "1" : "" } })
+                    : router.push("/follow-ups")
+                }
               >
                 <Text style={[st.tileNum, n > 0 && color ? { color } : null]}>{n ?? 0}</Text>
                 <Text style={st.tileLabel}>{label}</Text>
@@ -68,17 +100,53 @@ export default function Today() {
           </View>
 
           {data.exams?.payment_alerts > 0 && (
-            <Pressable onPress={() => router.push({ pathname: "/leads", params: { stage: "exam_scheduled" } })} style={st.alert}>
+            <Pressable onPress={() => router.push({ pathname: "/leads", params: { stage: "exam_scheduled", alert: "1" } })} style={st.alert}>
               <Ionicons name="alert-circle" size={18} color={C.red} />
               <Text style={st.alertText}>{data.exams.payment_alerts} exam done, payment due</Text>
             </Pressable>
           )}
 
-          <FollowUpList title="Overdue" items={data.overdue} danger onOpen={(id) => router.push(`/lead/${id}`)} />
-          <FollowUpList title="Due today" items={data.today} onOpen={(id) => router.push(`/lead/${id}`)} />
+          {coordinator ? (
+            <UpcomingExams items={ex.upcoming ?? []} onOpen={(id) => router.push(`/lead/${id}`)} />
+          ) : (
+            <>
+              <FollowUpList title="Overdue" items={data.overdue} danger onOpen={(id) => router.push(`/lead/${id}`)} />
+              <FollowUpList title="Due today" items={data.today} onOpen={(id) => router.push(`/lead/${id}`)} />
+            </>
+          )}
         </>
       ) : null}
     </ScrollView>
+  );
+}
+
+function UpcomingExams({ items, onOpen }: { items: any[]; onOpen: (id: number) => void }) {
+  return (
+    <>
+      <SectionTitle>Upcoming exams ({items.length})</SectionTitle>
+      {!items.length ? (
+        <Card>
+          <Empty icon="calendar-clear-outline" text="No exams scheduled." />
+        </Card>
+      ) : (
+        <View style={{ gap: 8 }}>
+          {items.map((e) => (
+            <Pressable key={e.id} onPress={() => onOpen(e.id)}>
+              <Card>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                  <Text style={st.name} numberOfLines={1}>{e.name}</Text>
+                  <Text style={st.when}>{e.exam_scheduled_at ? fmtDateTime(e.exam_scheduled_at) : "No date"}</Text>
+                </View>
+                <Text style={[st.meta, { textTransform: "none" }]}>
+                  {e.course_title || "No course"}
+                  {e.owner_name ? ` · Consultant: ${e.owner_name}` : ""}
+                </Text>
+              </Card>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </>
   );
 }
 
@@ -116,6 +184,9 @@ function FollowUpList({ title, items, danger, onOpen }: { title: string; items: 
 }
 
 const st = StyleSheet.create({
+  bell: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, alignItems: "center", justifyContent: "center" },
+  badge: { position: "absolute", top: -2, right: -2, minWidth: 19, height: 19, borderRadius: 10, backgroundColor: C.red, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  badgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
   hello: { fontSize: 24, fontWeight: "800", color: C.navy },
   sub: { color: C.muted, marginBottom: 12 },
   error: { color: C.red, marginVertical: 10 },
