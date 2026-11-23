@@ -1,6 +1,7 @@
 // Pipeline stages, labels and colours — same as the website CRM.
 export const STAGES: [string, string, string, string][] = [
   // key, label, background, text
+  ["backlog", "Backlog", "#F5F5F4", "#44403C"],
   ["new", "New Leads", "#F0F9FF", "#0369A1"],
   ["attempting_contact", "Attempting Contact", "#EEF2FF", "#4338CA"],
   ["in_conversation", "In Conversation", "#F5F3FF", "#6D28D9"],

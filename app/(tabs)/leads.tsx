@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../src/api";
@@ -27,6 +27,7 @@ export default function Leads() {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const loadingMore = useRef(false);
+  const [starting, setStarting] = useState<number | null>(null);
 
   useEffect(() => {
     if (params.stage !== undefined) setStage(params.stage);
@@ -115,6 +116,26 @@ export default function Leads() {
                   <StageBadge stage={l.stage} />
                 </View>
                 {l.is_new ? <Text style={st.newText}>New lead — not opened yet</Text> : null}
+                {l.stage === "backlog" && !coordinator ? (
+                  <Pressable
+                    onPress={async () => {
+                      setStarting(l.id);
+                      try {
+                        await api(`/crm/leads/${l.id}/stage`, { method: "POST", body: { stage: "attempting_contact" } });
+                        await load(1);
+                      } catch (e: any) {
+                        Alert.alert("Couldn't move the lead", e.message);
+                      } finally {
+                        setStarting(null);
+                      }
+                    }}
+                    disabled={starting === l.id}
+                    style={st.startBtn}
+                  >
+                    <Ionicons name="play" size={12} color={C.primary} />
+                    <Text style={st.startText}>{starting === l.id ? "Moving…" : "Start: Attempting Contact"}</Text>
+                  </Pressable>
+                ) : null}
                 <Text style={st.meta} numberOfLines={1}>
                   {l.course_title || "No course"}
                   {coordinator && l.owner_name ? ` · ${l.owner_name}` : ""}
@@ -150,6 +171,8 @@ const st = StyleSheet.create({
   name: { flex: 1, fontSize: 16, fontWeight: "700", color: C.ink },
   newDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.red },
   newText: { color: C.red, fontWeight: "700", fontSize: 12, marginTop: 2 },
+  startBtn: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", marginTop: 8, borderWidth: 1, borderColor: C.paleLine, backgroundColor: C.pale, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  startText: { color: C.primary, fontWeight: "800", fontSize: 12.5 },
   meta: { color: C.muted, marginTop: 3 },
   alert: { color: C.red, fontWeight: "700", marginTop: 5, fontSize: 13 },
   follow: { color: C.primary, fontWeight: "600", marginTop: 6, fontSize: 13 },
