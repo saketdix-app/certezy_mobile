@@ -1,6 +1,8 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import * as Notifications from "expo-notifications";
+import { leadIdOf } from "../src/push";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../src/auth";
 import { Loading } from "../src/ui";
@@ -19,6 +21,24 @@ function Gate() {
     if (user && onLogin) router.replace("/");
   }, [user, ready, segments, router]);
 
+  // Tapping a notification (also when it opened the app) → that lead, or the notifications list
+  useEffect(() => {
+    if (!user) return;
+    const open = (n?: Notifications.Notification | null) => {
+      if (!n) return;
+      const id = leadIdOf(n);
+      router.push(id ? `/lead/${id}` : "/notifications");
+    };
+    Notifications.getLastNotificationResponseAsync().then((r) => {
+      if (r) {
+        open(r.notification);
+        Notifications.clearLastNotificationResponseAsync?.();
+      }
+    });
+    const sub = Notifications.addNotificationResponseReceivedListener((r) => open(r.notification));
+    return () => sub.remove();
+  }, [user, router]);
+
   if (!ready) return <Loading />;
   return (
     <Stack
@@ -32,6 +52,7 @@ function Gate() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="lead/[id]" options={{ title: "Lead" }} />
+      <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
     </Stack>
   );
 }

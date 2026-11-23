@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, ApiError, loadToken, setSignedOutHandler, setToken } from "./api";
 import { TEAM_ROLES } from "./config";
+import { registerForPush, unregisterPush } from "./push";
 
 export type User = { id: number; name: string; email: string; role: string; mobile?: string | null };
 
@@ -24,7 +25,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         if (await loadToken()) {
           const { user: me } = await api<{ user: User }>("/auth/me");
-          if (isTeam(me.role)) setUser(me);
+          if (isTeam(me.role)) {
+            setUser(me);
+            registerForPush();
+          }
           else await setToken(null);
         }
       } catch {
@@ -46,9 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     await setToken(data.accessToken);
     setUser(data.user);
+    registerForPush();
   }, []);
 
   const signOut = useCallback(async () => {
+    await unregisterPush();
     await api("/auth/logout", { method: "POST" }).catch(() => {});
     await setToken(null);
     setUser(null);

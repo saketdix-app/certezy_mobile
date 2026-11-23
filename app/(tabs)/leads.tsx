@@ -14,9 +14,11 @@ export default function Leads() {
   const router = useRouter();
   const { user } = useAuth();
   const coordinator = user?.role === "exam_coordinator";
-  const params = useLocalSearchParams<{ stage?: string }>();
+  const params = useLocalSearchParams<{ stage?: string; alert?: string }>();
   const [stage, setStage] = useState<string>(params.stage ?? (coordinator ? "application" : ""));
   const [search, setSearch] = useState("");
+  // Exam Scheduled tab: only "exam done, payment due"
+  const [alertOnly, setAlertOnly] = useState(params.alert === "1");
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<any[] | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -28,7 +30,8 @@ export default function Leads() {
 
   useEffect(() => {
     if (params.stage !== undefined) setStage(params.stage);
-  }, [params.stage]);
+    setAlertOnly(params.alert === "1");
+  }, [params.stage, params.alert]);
   useEffect(() => {
     const t = setTimeout(() => setQuery(search.trim()), 350);
     return () => clearTimeout(t);
@@ -37,7 +40,9 @@ export default function Leads() {
   const load = useCallback(
     async (p = 1) => {
       try {
-        const d = await api("/crm/leads", { query: { stage: stage || undefined, search: query || undefined, page: p, limit: 25 } });
+        const d = await api("/crm/leads", {
+          query: { stage: stage || undefined, search: query || undefined, alert: stage === "exam_scheduled" && alertOnly ? "1" : undefined, page: p, limit: 25 },
+        });
         setCounts(d.counts ?? {});
         setPages(d.pagination?.totalPages ?? 1);
         setPage(p);
@@ -48,7 +53,7 @@ export default function Leads() {
         if (p === 1) setRows([]);
       }
     },
-    [stage, query]
+    [stage, query, alertOnly]
   );
   useFocusEffect(
     useCallback(() => {
@@ -77,6 +82,11 @@ export default function Leads() {
             <Chip key={k} label={label} count={counts[k] ?? 0} active={stage === k} onPress={() => { setRows(null); setStage(k); }} />
           ))}
         </ScrollView>
+        {stage === "exam_scheduled" && (
+          <View style={{ flexDirection: "row", paddingBottom: 8 }}>
+            <Chip tone="danger" label={alertOnly ? "✓ Exam done, payment due" : "Exam done, payment due"} active={alertOnly} onPress={() => { setRows(null); setAlertOnly((v) => !v); }} />
+          </View>
+        )}
       </View>
 
       {error ? <Text style={st.error}>{error}</Text> : null}
