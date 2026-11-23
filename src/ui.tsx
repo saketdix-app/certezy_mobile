@@ -14,6 +14,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C, R } from "./theme";
 import { STAGE } from "./crm";
 
@@ -21,6 +22,8 @@ type BtnProps = {
   title: string;
   onPress?: () => void;
   kind?: "primary" | "secondary" | "danger" | "ghost";
+  /** Solid custom colour (e.g. WhatsApp green); text is white */
+  color?: string;
   icon?: keyof typeof Ionicons.glyphMap;
   busy?: boolean;
   disabled?: boolean;
@@ -28,13 +31,15 @@ type BtnProps = {
   style?: ViewStyle;
 };
 
-export function Button({ title, onPress, kind = "primary", icon, busy, disabled, small, style }: BtnProps) {
-  const palette = {
-    primary: { bg: C.primary, fg: "#fff", border: C.primary },
-    secondary: { bg: C.surface, fg: C.navy, border: C.paleLine },
-    danger: { bg: C.surface, fg: C.red, border: "#FECACA" },
-    ghost: { bg: "transparent", fg: C.primary, border: "transparent" },
-  }[kind];
+export function Button({ title, onPress, kind = "primary", icon, busy, disabled, small, style, color }: BtnProps) {
+  const palette = color
+    ? { bg: color, fg: "#fff", border: color }
+    : {
+        primary: { bg: C.primary, fg: "#fff", border: C.primary },
+        secondary: { bg: C.surface, fg: C.navy, border: C.paleLine },
+        danger: { bg: C.surface, fg: C.red, border: "#FECACA" },
+        ghost: { bg: "transparent", fg: C.primary, border: "transparent" },
+      }[kind];
   const off = disabled || busy;
   return (
     <Pressable
@@ -135,18 +140,22 @@ export function Loading() {
 
 /** Bottom sheet for forms (move stage, log activity, follow-up...). */
 export function Sheet({ visible, title, onClose, children }: { visible: boolean; title: string; onClose: () => void; children: ReactNode }) {
+  // Android draws edge-to-edge: keep the sheet's buttons above the navigation bar
+  const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.sheetWrap}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={s.sheetWrap}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={s.sheet}>
+        <View style={[s.sheet, { paddingBottom: 18 + insets.bottom }]}>
           <View style={s.sheetHead}>
             <Text style={s.sheetTitle}>{title}</Text>
             <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close">
               <Ionicons name="close" size={22} color={C.muted} />
             </Pressable>
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 6 }}>
+            {children}
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>

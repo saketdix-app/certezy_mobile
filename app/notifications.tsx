@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../src/api";
 import { ago } from "../src/crm";
 import { Button, Empty, Loading } from "../src/ui";
@@ -24,6 +25,7 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<any[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const load = useCallback(async () => {
     try {
@@ -52,7 +54,7 @@ export default function NotificationsScreen() {
     <FlatList
       data={items}
       keyExtractor={(n) => String(n.id)}
-      contentContainerStyle={{ padding: 14, gap: 8, paddingBottom: 30 }}
+      contentContainerStyle={{ padding: 14, gap: 8, paddingBottom: 24 + insets.bottom }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
       ListHeaderComponent={
         unread ? (
