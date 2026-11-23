@@ -44,3 +44,4 @@ yarn-error.*
 *.jks
 *.keystore
 google-service-account*.json
+*-firebase-adminsdk-*.json
