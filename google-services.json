@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "167173139937",
+    "project_id": "certezy-team",
+    "storage_bucket": "certezy-team.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:167173139937:android:55c33f111cee1813e876a0",
+        "android_client_info": {
+          "package_name": "com.certezy.team"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyALJsULQhhVI8exNaNHa4kYzkCfXPwQANo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
