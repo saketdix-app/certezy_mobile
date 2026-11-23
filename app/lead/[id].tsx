@@ -39,7 +39,7 @@ export default function LeadDetail() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [sheet, setSheet] = useState<null | "stage" | "log" | "follow" | "cancelExam" | "whatsappNo">(null);
+  const [sheet, setSheet] = useState<null | "stage" | "log" | "follow" | "cancelExam" | "whatsappNo" | "coordinator">(null);
   const [compose, setCompose] = useState<null | "whatsapp" | "email">(null);
   const [target, setTarget] = useState<string>("");
 
@@ -220,7 +220,18 @@ export default function LeadDetail() {
           <Card>
             <Text style={st.blockTitle}>Application</Text>
             <Row label="Ticket size" value={money(lead.ticket_size, lead.ticket_currency)} />
-            <Row label="Exam coordinator" value={lead.exam_coordinator_name ?? "Not assigned"} />
+            <View style={st.rowBetween}>
+              <Text style={st.rowLabel}>Exam coordinator</Text>
+              {access.update_application ? (
+                <Pressable onPress={() => setSheet("coordinator")} accessibilityRole="button" accessibilityLabel="Assign exam coordinator">
+                  <Text style={[st.rowValue, { color: lead.exam_coordinator_name ? C.primary : C.red, fontWeight: "700" }]}>
+                    {lead.exam_coordinator_name ?? "Assign"} ›
+                  </Text>
+                </Pressable>
+              ) : (
+                <Text style={st.rowValue}>{lead.exam_coordinator_name ?? "Not assigned"}</Text>
+              )}
+            </View>
             <View style={st.rowBetween}>
               <Text style={st.rowLabel}>Application submitted</Text>
               {access.update_application ? (
@@ -347,7 +358,35 @@ export default function LeadDetail() {
         onSave={(n) => run(() => api(`/crm/leads/${lead.id}`, { method: "PATCH", body: { whatsapp_number: n || null } }), "WhatsApp number saved")}
       />
       <ComposeSheet channel={compose} lead={lead} onClose={() => setCompose(null)} />
-      <StageSheet visible={sheet === "stage"} lead={lead} target={target} busy={busy} onClose={() => setSheet(null)} onSave={(body) => run(() => api(`/crm/leads/${lead.id}/stage`, { method: "POST", body }), `Moved to ${stageLabel(target)}`)} />
+      <StageSheet
+        visible={sheet === "stage"}
+        lead={lead}
+        target={target}
+        busy={busy}
+        onClose={() => setSheet(null)}
+        onSave={({ exam_coordinator_id, ...body }) =>
+          run(async () => {
+            const moved = await api(`/crm/leads/${lead.id}/stage`, { method: "POST", body });
+            // Moving to Application: hand it to the chosen Exam Coordinator too
+            if (exam_coordinator_id && exam_coordinator_id !== lead.exam_coordinator_id) {
+              return api(`/crm/leads/${lead.id}/exam-coordinator`, { method: "PUT", body: { exam_coordinator_id } });
+            }
+            return moved;
+          }, `Moved to ${stageLabel(target)}`)
+        }
+      />
+      <CoordinatorSheet
+        visible={sheet === "coordinator"}
+        lead={lead}
+        busy={busy}
+        onClose={() => setSheet(null)}
+        onSave={(exam_coordinator_id) =>
+          run(
+            () => api(`/crm/leads/${lead.id}/exam-coordinator`, { method: "PUT", body: { exam_coordinator_id } }),
+            exam_coordinator_id ? "Exam coordinator assigned" : "Exam coordinator removed"
+          )
+        }
+      />
       <LogSheet visible={sheet === "log"} busy={busy} onClose={() => setSheet(null)} onSave={(body) => run(() => api(`/crm/leads/${lead.id}/activities`, { method: "POST", body }))} />
       <FollowSheet visible={sheet === "follow"} busy={busy} onClose={() => setSheet(null)} onSave={(body) => run(() => api(`/crm/leads/${lead.id}/follow-ups`, { method: "POST", body }), "Follow-up scheduled")} />
       <CancelExamSheet
@@ -485,9 +524,12 @@ function StageSheet({ visible, lead, target, busy, onClose, onSave }: { visible:
   const [ticket, setTicket] = useState("");
   const [currency, setCurrency] = useState("INR");
   const [examAt, setExamAt] = useState<Date | null>(null);
+  const [coordinator, setCoordinator] = useState<number | null>(null);
+  const [coordinators, setCoordinators] = useState<Coordinator[] | null>(null);
   useEffect(() => {
     if (!visible) return;
     setReason("");
+    setCoordinator(lead.exam_coordinator_id ?? null);
     setTicket(lead.ticket_size != null ? String(lead.ticket_size) : "");
     setCurrency(lead.ticket_currency || "INR");
     setExamAt(lead.exam_scheduled_at ? new Date(lead.exam_scheduled_at) : null);
@@ -497,16 +539,22 @@ function StageSheet({ visible, lead, target, busy, onClose, onSave }: { visible:
   const needsTicket = target === "application";
   const needsExam = target === "exam_scheduled";
   const closing = CLOSED.includes(target);
+  useEffect(() => {
+    if (visible && needsTicket && coordinators === null) loadCoordinators().then(setCoordinators);
+  }, [visible, needsTicket, coordinators]);
 
   const save = () => {
     if (needsReason && !reason.trim()) return Alert.alert("Reason needed", `Give a reason for ${stageLabel(target)}.`);
     if (needsTicket && !(Number(ticket) > 0)) return Alert.alert("Ticket size needed", "Enter the ticket size to move this lead to Application.");
     if (needsExam && !examAt) return Alert.alert("Exam date needed", "Choose the exam date and time.");
+    if (needsTicket && !coordinator && (coordinators?.length ?? 0) > 0)
+      return Alert.alert("Exam coordinator needed", "Choose the exam coordinator who will handle this student's application and exam.");
     onSave({
       stage: target,
       ...(reason.trim() && { reason: reason.trim() }),
       ...(needsTicket && { ticket_size: Number(ticket), ticket_currency: currency }),
       ...(needsExam && examAt && { exam_scheduled_at: examAt.toISOString() }),
+      ...(needsTicket && coordinator && { exam_coordinator_id: coordinator }),
     });
   };
 
@@ -523,6 +571,8 @@ function StageSheet({ visible, lead, target, busy, onClose, onSave }: { visible:
             <Chip label="$ USD" active={currency === "USD"} onPress={() => setCurrency("USD")} />
           </View>
           <Field value={ticket} onChangeText={setTicket} keyboardType="numeric" placeholder="Amount" />
+          <Text style={st.label}>Exam coordinator</Text>
+          <CoordinatorChoices list={coordinators} value={coordinator} onChange={setCoordinator} />
         </>
       )}
       {needsExam && (
@@ -669,3 +719,48 @@ const st = StyleSheet.create({
   tl: { paddingVertical: 10 },
   tlTitle: { fontWeight: "700", color: C.ink },
 });
+
+type Coordinator = { id: number; name: string; open_exams: number };
+const loadCoordinators = () => api<Coordinator[]>("/crm/exam-coordinators").catch(() => [] as Coordinator[]);
+
+/** Pick an Exam Coordinator (their open exam count helps share the work). */
+function CoordinatorChoices({ list, value, onChange }: { list: Coordinator[] | null; value: number | null; onChange: (id: number) => void }) {
+  if (list === null) return <Text style={[st.body, { marginBottom: 12 }]}>Loading exam coordinators…</Text>;
+  if (!list.length) return <Text style={[st.body, { marginBottom: 12 }]}>No exam coordinators yet — ask an admin to add one.</Text>;
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+      {list.map((c) => (
+        <Chip key={c.id} label={`${c.name} · ${c.open_exams}`} active={value === c.id} onPress={() => onChange(c.id)} />
+      ))}
+    </View>
+  );
+}
+
+function CoordinatorSheet({ visible, lead, busy, onClose, onSave }: { visible: boolean; lead: Lead; busy: boolean; onClose: () => void; onSave: (id: number | null) => void }) {
+  const [list, setList] = useState<Coordinator[] | null>(null);
+  const [value, setValue] = useState<number | null>(null);
+  useEffect(() => {
+    if (!visible) return;
+    setValue(lead.exam_coordinator_id ?? null);
+    loadCoordinators().then(setList);
+  }, [visible, lead]);
+  return (
+    <Sheet visible={visible} title="Exam coordinator" onClose={onClose}>
+      <Text style={[st.body, { marginBottom: 12 }]}>
+        They see this student in their app and handle the application, exam and payment. You stay the consultant.
+      </Text>
+      <CoordinatorChoices list={list} value={value} onChange={setValue} />
+      <Button
+        title="Save"
+        busy={busy}
+        disabled={!value || value === lead.exam_coordinator_id}
+        onPress={() => value && onSave(value)}
+      />
+      {lead.exam_coordinator_id ? (
+        <View style={{ marginTop: 8 }}>
+          <Button kind="secondary" title="Remove coordinator" disabled={busy} onPress={() => onSave(null)} />
+        </View>
+      ) : null}
+    </Sheet>
+  );
+}
