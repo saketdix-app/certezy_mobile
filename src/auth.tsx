@@ -8,7 +8,9 @@ export type User = { id: number; name: string; email: string; role: string; mobi
 type Auth = {
   user: User | null;
   ready: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  /** Resolves with a challenge when two-step sign-in is on (enter the emailed code next). */
+  signIn: (email: string, password: string) => Promise<{ challenge: string; email_hint: string } | null>;
+  verifyCode: (challenge: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -39,11 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const data = await api<{ user: User; accessToken: string }>("/auth/login", {
-      method: "POST",
-      body: { email: email.trim().toLowerCase(), password },
-    });
+  const finish = useCallback(async (data: { user: User; accessToken: string }) => {
     if (!isTeam(data.user?.role)) {
       await api("/auth/logout", { method: "POST" }).catch(() => {});
       throw new ApiError("This app is for the CERTEZY team. Students can learn on certezy.com.", 403);
@@ -53,6 +51,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     registerForPush();
   }, []);
 
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const data = await api<any>("/auth/login", {
+        method: "POST",
+        body: { email: email.trim().toLowerCase(), password },
+      });
+      if (data?.two_factor_required) return { challenge: data.challenge, email_hint: data.email_hint };
+      await finish(data);
+      return null;
+    },
+    [finish]
+  );
+
+  const verifyCode = useCallback(
+    async (challenge: string, code: string) => {
+      const data = await api<any>("/auth/login/verify", { method: "POST", body: { challenge, code } });
+      await finish(data);
+    },
+    [finish]
+  );
+
   const signOut = useCallback(async () => {
     await unregisterPush();
     await api("/auth/logout", { method: "POST" }).catch(() => {});
@@ -60,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const value = useMemo(() => ({ user, ready, signIn, signOut }), [user, ready, signIn, signOut]);
+  const value = useMemo(() => ({ user, ready, signIn, verifyCode, signOut }), [user, ready, signIn, verifyCode, signOut]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
