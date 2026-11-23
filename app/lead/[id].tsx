@@ -11,6 +11,8 @@ import {
   REASON_STAGES,
   activityTitle,
   ago,
+  answerEntries,
+  formLabel,
   fmtDate,
   fmtDateTime,
   isOverdue,
@@ -147,12 +149,18 @@ export default function LeadDetail() {
         </View>
       ) : null}
 
-      {answers.message || answers.preferred_time || lead.source_meta?.form ? (
-        <Card style={{ marginTop: 10 }}>
-          {lead.source_meta?.form ? <Text style={st.label}>{lead.source_meta.form}</Text> : null}
-          {answers.preferred_time ? <Text style={st.body}>Preferred time: {answers.preferred_time}</Text> : null}
-          {answers.batch ? <Text style={st.body}>Batch: {answers.batch}</Text> : null}
-          {answers.message ? <Text style={st.body}>“{answers.message}”</Text> : null}
+      {/* Everything the person filled in on the form (any question), like the website */}
+      {answerEntries(answers).length > 0 || lead.source_meta?.campaign || formLabel(lead.source_meta?.form_name ?? lead.source_meta?.form) ? (
+        <Card style={st.toldUs}>
+          <Text style={st.toldTitle}>What they told us</Text>
+          {formLabel(lead.source_meta?.form_name ?? lead.source_meta?.form) ? (
+            <Answer label="Form" value={String(formLabel(lead.source_meta?.form_name ?? lead.source_meta?.form))} />
+          ) : null}
+          {lead.source_meta?.campaign ? <Answer label="Campaign" value={lead.source_meta.campaign} /> : null}
+          {lead.preferred_schedule ? <Answer label="Preferred schedule" value={lead.preferred_schedule} /> : null}
+          {answerEntries(answers).map(([label, value]) => (
+            <Answer key={label} label={label} value={value} />
+          ))}
         </Card>
       ) : null}
 
@@ -314,6 +322,14 @@ export default function LeadDetail() {
             <View key={a.id} style={[st.tl, i > 0 && { borderTopWidth: 1, borderTopColor: C.line }]}>
               <Text style={st.tlTitle}>{activityTitle(a)}</Text>
               {a.body ? <Text style={st.body}>{a.body}</Text> : null}
+              {a.type === "repeat_enquiry"
+                ? answerEntries(a.meta?.answers).map(([label, value]) => (
+                    <Text key={label} style={st.body}>
+                      <Text style={{ fontWeight: "700" }}>{label}: </Text>
+                      {value}
+                    </Text>
+                  ))
+                : null}
               <Text style={st.metaSmall}>
                 {a.actor_name ? `${a.actor_name} · ` : ""}
                 {fmtDateTime(a.created_at)} ({ago(a.created_at)})
@@ -441,6 +457,17 @@ function ComposeSheet({ channel, lead, onClose }: { channel: null | "whatsapp" |
         <Button small kind="secondary" title="Save" busy={saving} onPress={save} style={{ marginTop: 2 }} />
       </View>
     </Sheet>
+  );
+}
+
+function Answer({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Text style={st.answerLabel}>{label}</Text>
+      <Text style={st.answerValue} selectable>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -625,6 +652,10 @@ const st = StyleSheet.create({
   metaSmall: { color: C.faint, fontSize: 12, marginTop: 4 },
   contactRow: { flexDirection: "row", gap: 8, marginTop: 12 },
   contactBtn: { flex: 1, paddingHorizontal: 6, paddingVertical: 10 },
+  toldUs: { marginTop: 10, backgroundColor: "#F4F8FC", borderColor: C.paleLine },
+  toldTitle: { fontSize: 12, fontWeight: "800", color: C.navy, letterSpacing: 0.8, textTransform: "uppercase" },
+  answerLabel: { fontSize: 13, fontWeight: "600", color: C.muted },
+  answerValue: { fontSize: 15, color: C.ink, marginTop: 1, lineHeight: 21 },
   infoBox: { marginTop: 12, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 8 },
   alert: { flexDirection: "row", gap: 8, backgroundColor: C.redSoft, borderColor: "#FECACA", borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 10 },
   alertText: { flex: 1, color: C.red, fontWeight: "700" },
