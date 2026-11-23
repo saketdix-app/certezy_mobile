@@ -1,4 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import * as SecureStore from "expo-secure-store";
 import { api, ApiError, getRefreshToken, loadToken, setRefreshToken, setSignedOutHandler, setToken } from "./api";
 import { TEAM_ROLES } from "./config";
 import { registerForPush, unregisterPush } from "./push";
@@ -17,24 +18,56 @@ type Auth = {
 const Ctx = createContext<Auth | null>(null);
 const isTeam = (role?: string) => TEAM_ROLES.includes(role as (typeof TEAM_ROLES)[number]);
 
+// Who's signed in, kept on the phone so the app opens signed in even without internet
+const USER_KEY = "certezy.user";
+const saveUser = (u: User | null) =>
+  (u ? SecureStore.setItemAsync(USER_KEY, JSON.stringify(u)) : SecureStore.deleteItemAsync(USER_KEY)).catch(() => {});
+const cachedUser = async (): Promise<User | null> => {
+  try {
+    const raw = await SecureStore.getItemAsync(USER_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setSignedOutHandler(() => setUser(null));
+    setSignedOutHandler(() => {
+      saveUser(null);
+      setUser(null);
+    });
     (async () => {
+      let known: User | null = null;
       try {
         if (await loadToken()) {
+          // Open straight away as the saved person; then confirm with the server
+          known = await cachedUser();
+          if (known) {
+            setUser(known);
+            setReady(true);
+          }
           const { user: me } = await api<{ user: User }>("/auth/me");
           if (isTeam(me.role)) {
             setUser(me);
+            saveUser(me);
             registerForPush();
+          } else {
+            await setToken(null);
+            await setRefreshToken(null);
+            saveUser(null);
+            setUser(null);
           }
-          else await setToken(null);
         }
-      } catch {
-        // signed out or offline: show the login screen
+      } catch (e) {
+        // Session over → the API already signed out. No internet / server busy → stay signed in.
+        if (e instanceof ApiError && e.status === 401) {
+          saveUser(null);
+          setUser(null);
+        }
       } finally {
         setReady(true);
       }
@@ -48,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     await setToken(data.accessToken);
     await setRefreshToken(data.refreshToken);
+    saveUser(data.user);
     setUser(data.user);
     registerForPush();
   }, []);
@@ -78,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api("/auth/logout", { method: "POST", body: { refresh_token: getRefreshToken() } }).catch(() => {});
     await setToken(null);
     await setRefreshToken(null);
+    saveUser(null);
     setUser(null);
   }, []);
 
