@@ -2,13 +2,17 @@ import * as SecureStore from "expo-secure-store";
 import { API_BASE } from "./config";
 
 /**
- * Talks to the CERTEZY API like the website does:
- *  • the access token from login is sent as a Bearer token (kept in SecureStore);
- *  • the refresh token is the httpOnly cookie the server sets at login — Android's
- *    native networking keeps it, so an expired access token is renewed silently;
- *  • if renewing fails the person is signed out.
+ * Talks to the CERTEZY API. The app stays signed in like other phone apps:
+ *  • every request says "X-Client: mobile", so the server gives a long session
+ *    (no idle sign-out; it renews itself for 90 days each time it's used);
+ *  • the access token goes as a Bearer token; the refresh token is kept in the
+ *    phone's secure storage and used to renew the access token silently;
+ *  • only if renewing fails (signed out elsewhere, account blocked) is the person signed out.
  */
 const KEY = "certezy.accessToken";
+const REFRESH_KEY = "certezy.refreshToken";
+let refreshToken: string | null = null;
+const CLIENT_HEADER = { "X-Client": "mobile" };
 let token: string | null = null;
 let onSignedOut: () => void = () => {};
 let refreshing: Promise<boolean> | null = null;
@@ -33,8 +37,16 @@ export async function setToken(t: string | null) {
 
 export async function loadToken() {
   token = await SecureStore.getItemAsync(KEY);
+  refreshToken = await SecureStore.getItemAsync(REFRESH_KEY);
   return token;
 }
+
+export async function setRefreshToken(t: string | null | undefined) {
+  refreshToken = t ?? null;
+  if (t) await SecureStore.setItemAsync(REFRESH_KEY, t);
+  else await SecureStore.deleteItemAsync(REFRESH_KEY);
+}
+export const getRefreshToken = () => refreshToken;
 
 const renew = () => {
   if (!refreshing) {
@@ -43,12 +55,14 @@ const renew = () => {
         const r = await fetch(`${API_BASE}/auth/refresh`, {
           method: "POST",
           credentials: "include",
-          headers: { Accept: "application/json" },
+          headers: { Accept: "application/json", "Content-Type": "application/json", ...CLIENT_HEADER },
+          body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
         });
         if (!r.ok) return false;
         const j = await r.json();
         if (!j?.data?.accessToken) return false;
         await setToken(j.data.accessToken);
+        if (j.data.refreshToken) await setRefreshToken(j.data.refreshToken);
         return true;
       } catch {
         return false;
@@ -77,6 +91,7 @@ export async function api<T = any>(path: string, opts: Opts = {}, retry = true):
       credentials: "include",
       headers: {
         Accept: "application/json",
+        ...CLIENT_HEADER,
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
@@ -89,6 +104,7 @@ export async function api<T = any>(path: string, opts: Opts = {}, retry = true):
   if (res.status === 401 && retry && !path.startsWith("/auth/login")) {
     if (await renew()) return api<T>(path, opts, false);
     await setToken(null);
+    await setRefreshToken(null);
     onSignedOut();
     throw new ApiError("Your session has ended. Please sign in again.", 401);
   }

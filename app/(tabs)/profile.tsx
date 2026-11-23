@@ -1,4 +1,4 @@
-import { Alert, Linking, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import Constants from "expo-constants";
 import { useAuth } from "../../src/auth";
 import { ROLE_LABEL } from "../../src/config";
@@ -18,16 +18,19 @@ export default function Profile() {
         <Text style={st.role}>{ROLE_LABEL[user?.role ?? ""] ?? user?.role}</Text>
       </Card>
       <Button kind="secondary" icon="globe-outline" title="Open the full CRM on the web" onPress={() => Linking.openURL("https://certezy.com/login")} />
-      <Button
-        kind="danger"
-        icon="log-out-outline"
-        title="Sign out"
-        onPress={() => Alert.alert("Sign out?", "You'll need your password to sign in again.", [
-          { text: "Cancel", style: "cancel" },
-          { text: "Sign out", style: "destructive", onPress: signOut },
-        ])}
-      />
+      <Text style={st.note}>You stay signed in on this phone. Sign out only if someone else will use it.</Text>
       <Text style={st.version}>CERTEZY Team · v{Constants.expoConfig?.version}</Text>
+      <Pressable
+        style={{ alignSelf: "center", padding: 8 }}
+        onPress={() =>
+          Alert.alert("Sign out of this phone?", "You'll need your password to sign in again.", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Sign out", style: "destructive", onPress: signOut },
+          ])
+        }
+      >
+        <Text style={{ color: C.muted, textDecorationLine: "underline" }}>Sign out of this phone</Text>
+      </Pressable>
     </View>
   );
 }
@@ -38,5 +41,6 @@ const st = StyleSheet.create({
   name: { fontSize: 19, fontWeight: "800", color: C.navy },
   email: { color: C.muted, marginTop: 2 },
   role: { marginTop: 8, color: C.primary, fontWeight: "700" },
+  note: { textAlign: "center", color: C.muted, fontSize: 13, marginTop: 4 },
   version: { textAlign: "center", color: C.faint, fontSize: 12, marginTop: 8 },
 });

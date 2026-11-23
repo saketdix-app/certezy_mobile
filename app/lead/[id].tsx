@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../src/api";
 import {
@@ -23,9 +24,12 @@ import { C } from "../../src/theme";
 type Lead = any;
 
 const digits = (p?: string) => String(p ?? "").replace(/\D/g, "");
+// Contact buttons: brand blue call, WhatsApp green, amber email (white text passes contrast)
+const CONTACT = { call: "#2F6496", whatsapp: "#0F7A42", email: "#B45309" };
 
 export default function LeadDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
   const [lead, setLead] = useState<Lead | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -88,7 +92,7 @@ export default function LeadDetail() {
 
   return (
     <ScrollView
-      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+      contentContainerStyle={{ padding: 16, paddingBottom: 32 + insets.bottom }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
     >
       <Stack.Screen options={{ title: lead.name }} />
@@ -107,12 +111,12 @@ export default function LeadDetail() {
         <View style={st.contactRow}>
           {lead.phone ? (
             <>
-              <Button small kind="secondary" icon="call-outline" title="Call" onPress={() => Linking.openURL(`tel:${lead.phone}`)} style={{ flex: 1 }} />
-              <Button small kind="secondary" icon="logo-whatsapp" title="WhatsApp" onPress={() => Linking.openURL(`https://wa.me/${digits(lead.phone)}`)} style={{ flex: 1 }} />
+              <Button small color={CONTACT.call} icon="call" title="Call" onPress={() => Linking.openURL(`tel:${lead.phone}`)} style={st.contactBtn} />
+              <Button small color={CONTACT.whatsapp} icon="logo-whatsapp" title="WhatsApp" onPress={() => Linking.openURL(`https://wa.me/${digits(lead.phone)}`)} style={st.contactBtn} />
             </>
           ) : null}
           {lead.email ? (
-            <Button small kind="secondary" icon="mail-outline" title="Email" onPress={() => Linking.openURL(`mailto:${lead.email}`)} style={{ flex: 1 }} />
+            <Button small color={CONTACT.email} icon="mail" title="Email" onPress={() => Linking.openURL(`mailto:${lead.email}`)} style={st.contactBtn} />
           ) : null}
         </View>
         {lead.phone || lead.email ? (
@@ -501,6 +505,7 @@ const st = StyleSheet.create({
   meta: { color: C.muted, marginTop: 4, textTransform: "capitalize" },
   metaSmall: { color: C.faint, fontSize: 12, marginTop: 4 },
   contactRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  contactBtn: { flex: 1, paddingHorizontal: 6, paddingVertical: 10 },
   alert: { flexDirection: "row", gap: 8, backgroundColor: C.redSoft, borderColor: "#FECACA", borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 10 },
   alertText: { flex: 1, color: C.red, fontWeight: "700" },
   label: { fontSize: 13, fontWeight: "700", color: C.muted, marginBottom: 6 },

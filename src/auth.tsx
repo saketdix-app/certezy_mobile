@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, ApiError, loadToken, setSignedOutHandler, setToken } from "./api";
+import { api, ApiError, getRefreshToken, loadToken, setRefreshToken, setSignedOutHandler, setToken } from "./api";
 import { TEAM_ROLES } from "./config";
 import { registerForPush, unregisterPush } from "./push";
 
@@ -41,12 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const finish = useCallback(async (data: { user: User; accessToken: string }) => {
+  const finish = useCallback(async (data: { user: User; accessToken: string; refreshToken?: string }) => {
     if (!isTeam(data.user?.role)) {
       await api("/auth/logout", { method: "POST" }).catch(() => {});
       throw new ApiError("This app is for the CERTEZY team. Students can learn on certezy.com.", 403);
     }
     await setToken(data.accessToken);
+    await setRefreshToken(data.refreshToken);
     setUser(data.user);
     registerForPush();
   }, []);
@@ -74,8 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await unregisterPush();
-    await api("/auth/logout", { method: "POST" }).catch(() => {});
+    await api("/auth/logout", { method: "POST", body: { refresh_token: getRefreshToken() } }).catch(() => {});
     await setToken(null);
+    await setRefreshToken(null);
     setUser(null);
   }, []);
 
