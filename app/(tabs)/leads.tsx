@@ -62,7 +62,8 @@ export default function Leads() {
     }, [load])
   );
 
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  // "All" leaves out the Backlog (it has its own tab); a search still includes it
+  const total = Object.values(counts).reduce((a, b) => a + b, 0) - (query.trim() ? 0 : counts.backlog ?? 0);
   const tabs = coordinator ? STAGES.filter(([k]) => WORKFLOW.includes(k)) : STAGES;
 
   return (

@@ -50,8 +50,11 @@ export default function Today() {
       ]
     : [
         ["Open leads", k.open_leads, undefined, ""],
+        ["Backlog", k.backlog, undefined, "backlog"],
+        ["New leads", k.new_leads, C.primary, "new"],
         ["Due today", k.follow_ups_today, C.primary],
         ["Overdue", k.overdue_follow_ups, C.red],
+        ["In conversation", k.in_conversation, undefined, "in_conversation"],
         ["Applications", k.applications, undefined, "application"],
         ["Exam scheduled", k.exam_scheduled, undefined, "exam_scheduled"],
         ["Course Done", k.course_done, C.green, "course_done"],
