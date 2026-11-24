@@ -164,7 +164,7 @@ export default function LeadDetail() {
         </Card>
       ) : null}
 
-      {/* ── Status ── */}
+      {/* ── Status: any stage, forwards or backwards (each move is kept in the history) ── */}
       {next.length > 0 && (
         <>
           <SectionTitle>Update status</SectionTitle>
