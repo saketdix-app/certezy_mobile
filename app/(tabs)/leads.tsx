@@ -79,7 +79,7 @@ export default function Leads() {
           ) : null}
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingVertical: 10 }}>
-          {!coordinator && <Chip label="All" count={total} active={stage === ""} onPress={() => { setRows(null); setStage(""); }} />}
+          {!coordinator && <Chip label="All Leads" count={total} active={stage === ""} onPress={() => { setRows(null); setStage(""); }} />}
           {tabs.map(([k, label]) => (
             <Chip key={k} label={label} count={counts[k] ?? 0} active={stage === k} onPress={() => { setRows(null); setStage(k); }} />
           ))}

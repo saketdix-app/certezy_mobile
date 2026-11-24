@@ -5,10 +5,11 @@ export const STAGES: [string, string, string, string][] = [
   ["new", "New Leads", "#F0F9FF", "#0369A1"],
   ["attempting_contact", "Attempting Contact", "#EEF2FF", "#4338CA"],
   ["in_conversation", "In Conversation", "#F5F3FF", "#6D28D9"],
-  ["on_hold", "On Hold", "#FFFBEB", "#B45309"],
   ["application", "Application", "#EAF2F9", "#275382"],
   ["exam_scheduled", "Exam Scheduled", "#FFFBEB", "#92400E"],
   ["course_done", "Course Done", "#ECFDF5", "#047857"],
+  ["no_response", "No Response", "#FFF7ED", "#C2410C"],
+  ["on_hold", "On Hold", "#FFFBEB", "#B45309"],
   ["not_interested", "Not Interested", "#F1F5F9", "#475569"],
   ["junk", "Junk Lead", "#FEF2F2", "#B91C1C"],
 ];
