@@ -6,6 +6,9 @@ import { api } from "../../src/api";
 import { useAuth } from "../../src/auth";
 import { STAGE, ago, fmtDateTime, stageLabel } from "../../src/crm";
 import { whatsappNumberOf } from "../../src/messages";
+import CallSyncCard from "../../src/CallSyncCard";
+import { logOutreach } from "../../src/outreach";
+import { syncCalls } from "../../src/callSync";
 import { Card, Empty, Loading, SectionTitle } from "../../src/ui";
 import { C } from "../../src/theme";
 
@@ -83,7 +86,7 @@ export default function Today() {
   return (
     <ScrollView
       contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await syncCalls(); await load(); setRefreshing(false); }} />}
     >
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
         <View style={{ flex: 1 }}>
@@ -134,6 +137,7 @@ export default function Today() {
             <UpcomingExams items={ex.upcoming ?? []} onOpen={openLead} />
           ) : (
             <>
+              <CallSyncCard compact />
               <Pipeline counts={counts} onOpen={(stage) => router.push({ pathname: "/leads", params: { stage } })} />
               {nothingDue ? (
                 <View style={st.caughtUp}>
@@ -252,7 +256,7 @@ function Queue({ title, items, empty, meta, onOpen, more, warn }: { title: strin
                   </Pressable>
                 ) : null}
                 {wa ? (
-                  <Pressable onPress={() => Linking.openURL(`https://wa.me/${wa}`)} style={[st.act, { backgroundColor: C.greenSoft }]} accessibilityLabel={`WhatsApp ${l.name}`} hitSlop={4}>
+                  <Pressable onPress={() => Linking.openURL(`https://wa.me/${wa}`).then(() => logOutreach(l.id, "whatsapp"))} style={[st.act, { backgroundColor: C.greenSoft }]} accessibilityLabel={`WhatsApp ${l.name}`} hitSlop={4}>
                     <Ionicons name="logo-whatsapp" size={18} color="#0F7A42" />
                   </Pressable>
                 ) : null}

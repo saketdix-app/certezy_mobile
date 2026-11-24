@@ -24,6 +24,8 @@ import { useAuth } from "../../src/auth";
 import { DeviceEventEmitter } from "react-native";
 import { LEADS_SEEN } from "../../src/newLeads";
 import { STARTERS, fillTemplate, whatsappNumberOf } from "../../src/messages";
+import { logOutreach } from "../../src/outreach";
+import { DetailsSheet, StudentSection } from "../../src/LeadStudent";
 import { Button, Card, Chip, Field, Loading, Pill, SectionTitle, Sheet, StageBadge } from "../../src/ui";
 import { C } from "../../src/theme";
 
@@ -39,7 +41,8 @@ export default function LeadDetail() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [sheet, setSheet] = useState<null | "stage" | "log" | "follow" | "cancelExam" | "whatsappNo" | "coordinator">(null);
+  const [sheet, setSheet] = useState<null | "stage" | "log" | "follow" | "cancelExam" | "whatsappNo" | "coordinator" | "details">(null);
+  const { user: me } = useAuth();
   const [compose, setCompose] = useState<null | "whatsapp" | "email">(null);
   const [target, setTarget] = useState<string>("");
 
@@ -139,6 +142,11 @@ export default function LeadDetail() {
             </Pressable>
           </View>
           {lead.email ? <Row label="Email" value={lead.email} /> : null}
+          {access.edit ? (
+            <Pressable onPress={() => setSheet("details")} style={{ paddingTop: 6 }} hitSlop={8} accessibilityRole="button">
+              <Text style={{ color: C.primary, fontWeight: "700" }}>Edit name, email or course ›</Text>
+            </Pressable>
+          ) : null}
         </View>
       </Card>
 
@@ -182,6 +190,8 @@ export default function LeadDetail() {
           )}
         </>
       )}
+
+      {access.student_actions ? <StudentSection lead={lead} isAdmin={["admin", "super_admin"].includes(me?.role ?? "")} onChanged={load} /> : null}
 
       {/* ── Log & schedule ── */}
       <SectionTitle>Log & schedule</SectionTitle>
@@ -357,7 +367,7 @@ export default function LeadDetail() {
         onClose={() => setSheet(null)}
         onSave={(n) => run(() => api(`/crm/leads/${lead.id}`, { method: "PATCH", body: { whatsapp_number: n || null } }), "WhatsApp number saved")}
       />
-      <ComposeSheet channel={compose} lead={lead} onClose={() => setCompose(null)} />
+      <ComposeSheet channel={compose} lead={lead} onClose={() => setCompose(null)} onSent={(fresh) => fresh?.id && setLead(fresh)} />
       <StageSheet
         visible={sheet === "stage"}
         lead={lead}
@@ -374,6 +384,13 @@ export default function LeadDetail() {
             return moved;
           }, `Moved to ${stageLabel(target)}`)
         }
+      />
+      <DetailsSheet
+        visible={sheet === "details"}
+        lead={lead}
+        busy={busy}
+        onClose={() => setSheet(null)}
+        onSave={(body) => run(() => api(`/crm/leads/${lead.id}`, { method: "PATCH", body }), "Details saved")}
       />
       <CoordinatorSheet
         visible={sheet === "coordinator"}
@@ -420,7 +437,7 @@ function WhatsAppNumberSheet({ visible, lead, busy, onClose, onSave }: { visible
 }
 
 /** WhatsApp / email with a saved message: lead details filled in, edit, open the app. */
-function ComposeSheet({ channel, lead, onClose }: { channel: null | "whatsapp" | "email"; lead: Lead; onClose: () => void }) {
+function ComposeSheet({ channel, lead, onClose, onSent }: { channel: null | "whatsapp" | "email"; lead: Lead; onClose: () => void; onSent?: (lead: any) => void }) {
   const { user } = useAuth();
   const [templates, setTemplates] = useState<any[] | null>(null);
   const [text, setText] = useState("");
@@ -442,7 +459,9 @@ function ComposeSheet({ channel, lead, onClose }: { channel: null | "whatsapp" |
     const url = wa
       ? `https://wa.me/${whatsappNumberOf(lead)}?text=${encodeURIComponent(text)}`
       : `mailto:${lead.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
-    Linking.openURL(url).catch(() => Alert.alert("Couldn't open", wa ? "Is WhatsApp installed?" : "No email app found."));
+    Linking.openURL(url)
+      .then(() => logOutreach(lead.id, wa ? "whatsapp" : "email", text, wa ? undefined : subject).then((fresh) => fresh && onSent?.(fresh)))
+      .catch(() => Alert.alert("Couldn't open", wa ? "Is WhatsApp installed?" : "No email app found."));
     onClose();
   };
   const save = async () => {
