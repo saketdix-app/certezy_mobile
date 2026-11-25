@@ -7,6 +7,7 @@ import { api } from "../../src/api";
 import { useAuth } from "../../src/auth";
 import { ROLE_LABEL } from "../../src/config";
 import { Button, Card } from "../../src/ui";
+import CallSyncCard from "../../src/CallSyncCard";
 import { C } from "../../src/theme";
 
 export default function Profile() {
@@ -22,6 +23,7 @@ export default function Profile() {
         <Text style={st.role}>{ROLE_LABEL[user?.role ?? ""] ?? user?.role}</Text>
       </Card>
       <Button kind="secondary" icon="globe-outline" title="Open the full CRM on the web" onPress={() => Linking.openURL("https://certezy.com/login")} />
+      <CallSyncCard />
       <UpdateCard />
       <Text style={st.note}>You stay signed in on this phone. Sign out only if someone else will use it.</Text>
       <Text style={st.version}>

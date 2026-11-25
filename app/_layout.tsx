@@ -1,6 +1,8 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { AppState } from "react-native";
+import { syncCalls } from "../src/callSync";
 import * as Notifications from "expo-notifications";
 import { leadIdOf } from "../src/push";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -20,6 +22,16 @@ function Gate() {
     if (!user && !onLogin) router.replace("/login");
     if (user && onLogin) router.replace("/");
   }, [user, ready, segments, router]);
+
+  // Lead calls from the call log: on start and whenever the app comes back (e.g. after a call)
+  useEffect(() => {
+    if (!user) return;
+    syncCalls();
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") syncCalls();
+    });
+    return () => sub.remove();
+  }, [user]);
 
   // Tapping a notification (also when it opened the app) → that lead, or the notifications list
   useEffect(() => {
