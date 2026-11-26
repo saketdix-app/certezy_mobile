@@ -2,7 +2,8 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { AppState } from "react-native";
-import { syncCalls } from "../src/callSync";
+import { askForCallLogOnce, syncCalls } from "../src/callSync";
+import { updateBackgroundCallSync } from "../src/backgroundCallSync";
 import * as Notifications from "expo-notifications";
 import { leadIdOf } from "../src/push";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -26,7 +27,11 @@ function Gate() {
   // Lead calls from the call log: on start and whenever the app comes back (e.g. after a call)
   useEffect(() => {
     if (!user) return;
-    syncCalls();
+    // Ask once for call-log access, then check now and keep checking in the background
+    askForCallLogOnce().finally(() => {
+      syncCalls();
+      updateBackgroundCallSync();
+    });
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") syncCalls();
     });

@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { api, ApiError, getRefreshToken, loadToken, setRefreshToken, setSignedOutHandler, setToken } from "./api";
 import { TEAM_ROLES } from "./config";
 import { registerForPush, unregisterPush } from "./push";
+import { stopBackgroundCallSync } from "./backgroundCallSync";
 
 export type User = { id: number; name: string; email: string; role: string; mobile?: string | null };
 
@@ -108,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    await stopBackgroundCallSync();
     await unregisterPush();
     await api("/auth/logout", { method: "POST", body: { refresh_token: getRefreshToken() } }).catch(() => {});
     await setToken(null);

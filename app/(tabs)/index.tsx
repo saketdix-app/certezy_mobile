@@ -78,7 +78,7 @@ export default function Today() {
         ["Backlog", k.backlog, undefined, "backlog"],
       ];
   const first = user?.name?.split(" ")[0] ?? "";
-  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
+  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
   const toCall = k.new_leads ?? 0;
   const nothingDue = !(data?.overdue?.length || data?.today?.length);
   const openLead = (id: number) => router.push(`/lead/${id}`);
