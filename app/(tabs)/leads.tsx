@@ -7,6 +7,17 @@ import { useAuth } from "../../src/auth";
 import { STAGES, ago, fmtDateTime, isOverdue } from "../../src/crm";
 import { Card, Chip, Empty, Loading, StageBadge } from "../../src/ui";
 import { C } from "../../src/theme";
+import { pickDateTime } from "../../src/pickDateTime";
+
+// Lead added: quick ranges, or Custom (two dates, read as IST days by the server)
+const RANGES: [string, string][] = [
+  ["", "Any time"],
+  ["1d", "1 day"],
+  ["3d", "3 days"],
+  ["7d", "1 week"],
+];
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const short = (s: string) => new Date(`${s}T00:00:00+05:30`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
 
 const WORKFLOW = ["application", "exam_scheduled", "course_done"];
 
@@ -28,6 +39,19 @@ export default function Leads() {
   const [refreshing, setRefreshing] = useState(false);
   const loadingMore = useRef(false);
   const [starting, setStarting] = useState<number | null>(null);
+  const [added, setAdded] = useState("");
+  const [custom, setCustom] = useState<{ from: string; to: string } | null>(null);
+
+  const pickCustom = async () => {
+    const from = await pickDateTime(custom ? new Date(`${custom.from}T00:00:00`) : new Date(Date.now() - 7 * 86400e3), { dateOnly: true });
+    if (!from) return;
+    const to = await pickDateTime(custom ? new Date(`${custom.to}T00:00:00`) : new Date(), { dateOnly: true });
+    if (!to) return;
+    const [a, b] = from <= to ? [from, to] : [to, from];
+    setRows(null);
+    setAdded("");
+    setCustom({ from: ymd(a), to: ymd(b) });
+  };
 
   useEffect(() => {
     if (params.stage !== undefined) setStage(params.stage);
@@ -42,7 +66,7 @@ export default function Leads() {
     async (p = 1) => {
       try {
         const d = await api("/crm/leads", {
-          query: { stage: stage || undefined, search: query || undefined, alert: stage === "exam_scheduled" && alertOnly ? "1" : undefined, page: p, limit: 25 },
+          query: { stage: stage || undefined, search: query || undefined, alert: stage === "exam_scheduled" && alertOnly ? "1" : undefined, added: added || undefined, from: custom?.from, to: custom?.to, page: p, limit: 25 },
         });
         setCounts(d.counts ?? {});
         setPages(d.pagination?.totalPages ?? 1);
@@ -54,7 +78,7 @@ export default function Leads() {
         if (p === 1) setRows([]);
       }
     },
-    [stage, query, alertOnly]
+    [stage, query, alertOnly, added, custom]
   );
   useFocusEffect(
     useCallback(() => {
@@ -84,6 +108,13 @@ export default function Leads() {
             <Chip key={k} label={label} count={counts[k] ?? 0} active={stage === k} onPress={() => { setRows(null); setStage(k); }} />
           ))}
         </ScrollView>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingBottom: 10, alignItems: "center" }}>
+          <Ionicons name="calendar-outline" size={16} color={C.faint} accessibilityLabel="Lead added" />
+          {RANGES.map(([k, label]) => (
+            <Chip key={k || "any"} label={label} active={!custom && added === k} onPress={() => { setRows(null); setCustom(null); setAdded(k); }} />
+          ))}
+          <Chip label={custom ? `${short(custom.from)} – ${short(custom.to)}` : "Custom"} active={!!custom} onPress={pickCustom} />
+        </ScrollView>
         {stage === "exam_scheduled" && (
           <View style={{ flexDirection: "row", paddingBottom: 8 }}>
             <Chip tone="danger" label={alertOnly ? "✓ Exam done, payment due" : "Exam done, payment due"} active={alertOnly} onPress={() => { setRows(null); setAlertOnly((v) => !v); }} />
@@ -107,7 +138,7 @@ export default function Leads() {
             await load(page + 1);
             loadingMore.current = false;
           }}
-          ListEmptyComponent={<Empty icon="people-outline" text={query ? "No leads match your search." : "No leads here."} />}
+          ListEmptyComponent={<Empty icon="people-outline" text={query ? "No leads match your search." : added || custom ? "No leads added in this time range." : "No leads here."} />}
           renderItem={({ item: l }) => (
             <Pressable onPress={() => router.push(`/lead/${l.id}`)}>
               <Card style={l.payment_alert ? { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" } : undefined}>
