@@ -36,12 +36,15 @@ export const FOLLOW_UP_TYPES: [string, string][] = [
   ["other", "Other"],
 ];
 
+/** All times are shown in India time (IST), whatever the phone's time zone. */
+export const IST = "Asia/Kolkata";
+
 export const fmtDateTime = (d?: string | null) =>
   d
-    ? new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+    ? new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: IST })
     : "—";
 export const fmtDate = (d?: string | null) =>
-  d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: IST }) : "—";
 export const ago = (d?: string | null) => {
   if (!d) return "";
   const m = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 60000));

@@ -2,7 +2,9 @@ import { useCallback, useState } from "react";
 import { Alert, Linking, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { callSyncOn, callSyncSupported, syncCalls, turnOffCallSync, turnOnCallSync } from "./callSync";
+import { callSyncOn, callSyncSupported, lastCallSync, syncCalls, turnOffCallSync, turnOnCallSync } from "./callSync";
+import { updateBackgroundCallSync } from "./backgroundCallSync";
+import { fmtDateTime } from "./crm";
 import { Button, Card } from "./ui";
 import { C } from "./theme";
 
@@ -14,10 +16,12 @@ export default function CallSyncCard({ compact }: { compact?: boolean }) {
   const [on, setOn] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [last, setLast] = useState<number | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       callSyncOn().then(setOn);
+      lastCallSync().then(setLast);
     }, [])
   );
   if (!callSyncSupported() || on === null || (compact && on)) return null;
@@ -27,6 +31,7 @@ export default function CallSyncCard({ compact }: { compact?: boolean }) {
     const ok = await turnOnCallSync();
     setBusy(false);
     setOn(ok);
+    updateBackgroundCallSync();
     if (!ok)
       Alert.alert("Call log access is off", "To record lead calls, allow Call logs for CERTEZY Team in your phone's settings.", [
         { text: "Not now", style: "cancel" },
@@ -37,6 +42,7 @@ export default function CallSyncCard({ compact }: { compact?: boolean }) {
     setBusy(true);
     const n = await syncCalls();
     setBusy(false);
+    lastCallSync().then(setLast);
     setMsg(n ? `${n} new lead call${n === 1 ? "" : "s"} recorded.` : "Up to date. No new calls with your leads.");
   };
 
@@ -49,7 +55,7 @@ export default function CallSyncCard({ compact }: { compact?: boolean }) {
       </View>
       <Text style={st.body}>
         {on
-          ? "Calls with your leads' numbers (made, received or missed) are added to each lead's history automatically. Other calls stay on your phone."
+          ? "Calls with your leads' numbers (made, received, missed, and how long you talked) are added to each lead's history automatically — also when you call from the phone's dialer. Other calls stay on your phone."
           : "Let the app add calls with your leads to their history automatically: who called, when, and for how long. Other calls stay on your phone."}
       </Text>
       <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
@@ -63,6 +69,7 @@ export default function CallSyncCard({ compact }: { compact?: boolean }) {
               disabled={busy}
               onPress={async () => {
                 await turnOffCallSync();
+                updateBackgroundCallSync();
                 setOn(false);
                 setMsg("");
               }}
@@ -73,6 +80,7 @@ export default function CallSyncCard({ compact }: { compact?: boolean }) {
         )}
       </View>
       {msg ? <Text style={st.msg}>{msg}</Text> : null}
+      {on && last ? <Text style={st.msg}>Last checked {fmtDateTime(new Date(last).toISOString())} IST</Text> : null}
     </Card>
   );
 }
