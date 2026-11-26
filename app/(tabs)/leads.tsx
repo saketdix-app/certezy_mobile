@@ -40,6 +40,8 @@ export default function Leads() {
   const loadingMore = useRef(false);
   const [starting, setStarting] = useState<number | null>(null);
   const [added, setAdded] = useState("");
+  // Sort arrow: "" = the tab's usual order, else newest / oldest added first
+  const [sort, setSort] = useState("");
   const [custom, setCustom] = useState<{ from: string; to: string } | null>(null);
 
   const pickCustom = async () => {
@@ -66,7 +68,7 @@ export default function Leads() {
     async (p = 1) => {
       try {
         const d = await api("/crm/leads", {
-          query: { stage: stage || undefined, search: query || undefined, alert: stage === "exam_scheduled" && alertOnly ? "1" : undefined, added: added || undefined, from: custom?.from, to: custom?.to, page: p, limit: 25 },
+          query: { stage: stage || undefined, search: query || undefined, alert: stage === "exam_scheduled" && alertOnly ? "1" : undefined, added: added || undefined, sort: sort || undefined, from: custom?.from, to: custom?.to, page: p, limit: 25 },
         });
         setCounts(d.counts ?? {});
         setPages(d.pagination?.totalPages ?? 1);
@@ -78,7 +80,7 @@ export default function Leads() {
         if (p === 1) setRows([]);
       }
     },
-    [stage, query, alertOnly, added, custom]
+    [stage, query, alertOnly, added, custom, sort]
   );
   useFocusEffect(
     useCallback(() => {
@@ -109,6 +111,15 @@ export default function Leads() {
           ))}
         </ScrollView>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingBottom: 10, alignItems: "center" }}>
+          <Pressable
+            onPress={() => { setRows(null); setSort((v) => (v === "oldest" ? "newest" : "oldest")); }}
+            accessibilityRole="button"
+            accessibilityLabel={sort === "oldest" ? "Oldest leads first. Switch to newest first" : "Newest leads first. Switch to oldest first"}
+            style={[st.sortBtn, sort ? st.sortOn : null]}
+          >
+            <Ionicons name={sort === "oldest" ? "arrow-up" : "arrow-down"} size={14} color={sort ? "#fff" : C.ink} />
+            <Text style={[st.sortText, sort ? { color: "#fff" } : null]}>{sort === "oldest" ? "Oldest" : "Newest"}</Text>
+          </Pressable>
           <Ionicons name="calendar-outline" size={16} color={C.faint} accessibilityLabel="Lead added" />
           {RANGES.map(([k, label]) => (
             <Chip key={k || "any"} label={label} active={!custom && added === k} onPress={() => { setRows(null); setCustom(null); setAdded(k); }} />
@@ -199,6 +210,9 @@ const st = StyleSheet.create({
   search: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 12 },
   searchInput: { flex: 1, paddingVertical: 10, fontSize: 15, color: C.ink },
   error: { color: C.red, paddingHorizontal: 14 },
+  sortBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderColor: C.line, backgroundColor: C.surface, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
+  sortOn: { backgroundColor: C.primary, borderColor: C.primary },
+  sortText: { fontWeight: "700", fontSize: 13, color: C.ink },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   name: { flex: 1, fontSize: 16, fontWeight: "700", color: C.ink },
   newDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.red },
